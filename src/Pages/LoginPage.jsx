@@ -1,37 +1,71 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Fingerprint, Wallet } from 'lucide-react';
+import { Fingerprint, AlertCircle } from 'lucide-react';
 import './LoginPage.css';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
+  const [error, setError] = useState(null);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setLoading(true);
-    // Simulate login process
-    setTimeout(() => {
+  const handleBiometricLogin = async () => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      // Mock biometric data for testing
+      const mockBiometricData = 'mock-biometric-data';
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          biometricData: mockBiometricData,
+        }),
+      });
+
+      // Check if the response is OK
+      if (!response.ok) {
+        let errorMessage = `Login failed with status ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch {
+          // If response body is not JSON, fallback to default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Parse JSON only if the response body exists
+      const data = await response.json();
+
+      if (data.success && data.token) {
+        // Store token and notify user
+        localStorage.setItem('authToken', data.token);
+        alert('Login successful!');
+        // Redirect to dashboard or home page
+        // window.location.href = '/dashboard';
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err) {
+      setError(err.message);
+      console.error('Login error:', err);
+    } finally {
       setLoading(false);
-      alert('Login successful!');
-    }, 2000);
+    }
   };
 
-  const connectMetaMask = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        // Request account access
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setWalletAddress(accounts[0]);
-        alert('Connected to MetaMask!');
-      } catch (error) {
-        console.error('Failed to connect to MetaMask:', error);
-        alert('Failed to connect to MetaMask. Please try again.');
-      }
-    } else {
-      alert('MetaMask is not installed. Please install it to use this feature.');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!username.trim()) {
+      setError('Username is required');
+      return;
     }
+    await handleBiometricLogin();
   };
 
   return (
@@ -44,6 +78,12 @@ const LoginPage = () => {
         transition={{ duration: 0.5 }}
       >
         <h2 className="form-title">Login</h2>
+        {error && (
+          <div className="error-container">
+            <AlertCircle className="error-icon" />
+            <p className="error-message">{error}</p>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
             <label htmlFor="username" className="form-label">Username</label>
@@ -52,18 +92,23 @@ const LoginPage = () => {
               id="username" 
               value={username} 
               onChange={(e) => setUsername(e.target.value)}
-              className="form-input"
+              className={`form-input ${error && !username ? 'input-error' : ''}`}
               required
+              disabled={loading}
             />
           </div>
           <div className="form-group">
             <label className="form-label">Biometric Authentication</label>
             <motion.div 
-              className="biometric-placeholder"
+              className={`biometric-placeholder ${loading ? 'loading' : ''}`}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => !loading && handleBiometricLogin()}
             >
               <Fingerprint size={64} className="biometric-icon" />
+              <p className="biometric-text">
+                {loading ? 'Authenticating...' : 'Click to scan fingerprint'}
+              </p>
             </motion.div>
           </div>
           <motion.button 
@@ -76,25 +121,9 @@ const LoginPage = () => {
             {loading ? 'Logging in...' : 'Login'}
           </motion.button>
         </form>
-        <div className="metamask-section">
-          <p className="metamask-text">Or connect with MetaMask:</p>
-          <motion.button 
-            className="metamask-button"
-            onClick={connectMetaMask}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Wallet size={24} className="metamask-icon" />
-            Connect MetaMask
-          </motion.button>
-          {walletAddress && (
-            <p className="wallet-address">Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</p>
-          )}
-        </div>
       </motion.div>
     </div>
   );
 };
 
 export default LoginPage;
-
